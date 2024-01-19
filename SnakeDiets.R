@@ -1,19 +1,19 @@
-setwd("C:/Users/Isaac/Syncthing-Docs/Dissertation/Ch 2/iNat")
+setwd("C:/Users/User1/Syncthing-Docs/Dissertation/Ch 2/iNat")
 library('tidyverse')
 library('ggplot2')
 
-print('skip the data cleaning steps')
-
 #### data cleaning - initial prey taxonomy resolution ####
-iNat <- read.csv("Snake_Diet_project.csv")
-iNat <- subset(iNat,select = -c(field.eating...interaction.)) #don't need this column
+iNat <- read.csv("observations-01-05-24.csv")
 
-#resolve any prey ID inconsistencies
+#1 - find any prey ID inconsistencies ####
 fields <- grep("field",colnames(iNat))
+url <- which(colnames(iNat) == "field.eating...interaction.")
+
+fields <- fields[-which(fields == url)]
 
 rf <- function(x){
-  nms <- unique(unlist(iNat[x,fields]))
-  nms <- nms[-which(is.na(nms))]
+  nms <- as.character(unique(unlist(iNat[x,fields])))
+  #nms <- nms[-which(NM)]
   nms <- nms[-which(nms == "")]
   return(nms)
 }
@@ -22,70 +22,27 @@ num <- c(1:dim(iNat)[1])
 
 preyIDs <- sapply(num, rf)
 
+iNat$preyID<- preyIDs
+
 df <- data.frame(num = num,len = sapply(preyIDs, length))
 
 df$problem <- FALSE
 df$problem[which(df$len > 1)] <- TRUE
-df$ready
-df$ready[which(df$len == 1)] <- TRUE
-df$solution <- NA
-df$solution[which(df$ready)] <- unlist(preyIDs[which(df$ready)])
 
-problems <- preyIDs[df$problem]
+iNat <- cbind(iNat, df)
 
-#when prey IDs disagree, take either
-# 1 - the most specific ID (lowest taxon level)
-#2 - when taxon levels match, the agreed upon level between them
-
-#if the dataset changes, these will need to be reassessed
-solutions <- c("Hemidactylus",
-               "Cyprinodon variegatus",
-               "Hemidactylus mabouia",
-               "Aepyceros melampus melampus",
-               "Passeriformes",
-               "Cordylus niger",
-               "Rhinella marina",
-               "Thraupis palmarum",
-               "Smilisca baudinii",
-               "Catostomus commersonii",
-               "Anaxyrus americanus",
-               "Phoxinus",
-               "Scincidae",
-               "Falco sparverius",
-               "Rhacophorus malabaricus",
-               "Sceloporus occidentalis",
-               "Columbidae",
-               "Ameiurus natalis",
-               "Cypriniformes",
-               "Myomorpha",
-               "Scincella lateralis",
-               "Aepyceros melampus melampus",
-               "Pteropus conspicillatus",
-               "Anura",
-               "Leptodactylus labyrinthicus",
-               "Rhinella horribilis",
-               "Notocitellus adocetus",
-               "Accipitridae",
-               "Placentalia",
-               "Lithobates clamitans",
-               "Lithobates")
-
-df$solution[which(df$problem)] <- solutions
-
-iNat$preyID <- df$solution
-
+#End cleaning####
 library(taxize)
-
-
 
 #resolve 
 preytax <- readRDS("preytaxonomy.RDS")
 
 existing <- names(preytax)
-missingprey <- which(is.na(iNat$preyID))
+missingprey <- which(sapply(iNat$preyID, length)==0)
 preyitems <- unique(iNat$preyID)
 
 add <- preyitems[which(!(preyitems %in% existing))]
+add <- add[which(sapply(add, length)==1)]
 # data cleaning - initial preytax run#### 
 #for first run, all the preytax 
 a <- classification(preyitems[1:200], db = "itis")
@@ -114,7 +71,7 @@ saveRDS(preytax, "preytaxonomy.RDS")
 # data cleaning - subsequent runs####
 
 # #17('Python natalensis') gives a 404 error, so remove it
-newprey <- classification(add[which(!is.na(add))][-17], db = "itis")
+newprey <- classification(unlist(add[which(sapply(add, length)!=0)]), db = "itis")
 
 newprey_NA <- which(is.na(newprey))
 
@@ -123,6 +80,9 @@ newprey_wiki <- classification(c(names(newprey[newprey_NA]),"Python natalensis")
 newprey[newprey_NA]<- newprey_wiki[1:5]
 
 newprey$`Python natalensis` <- newprey_wiki[6]
+
+#for quick & dirty (don't make corrections to the NAs)
+newprey <- newprey[-newprey_NA]
 
 preytax <- c(preytax,newprey)
 
@@ -152,22 +112,21 @@ row.names(preytaxonomy)<- preytaxonomy$preyID
 
 write.csv(preytaxonomy, "PreyTaxonomy.csv")
 
-preytaxonomy <- read.csv("PreyTaxonomy.csv")[1:978,]
+preytaxonomy <- read.csv("PreyTaxonomy.csv")
 row.names(preytaxonomy) <- preytaxonomy[,1]
 
 which(duplicated(preytaxonomy[,1]))
 
+solvedprey <-rep(NA, times = dim(iNat)[1])# unlist(iNat$preyID[!iNat$problem])
+solvedprey[which(!iNat$problem)] <- iNat$preyID[!iNat$problem]
+solvedprey[which(sapply(solvedprey, length)==0)] <- NA
+solvedprey <- unlist(solvedprey)
 
-iNatprey <- preytaxonomy[iNat$preyID,]
-iNatprey <- iNatprey[,-1]
+preydf <- preytaxonomy[solvedprey,][,-c(1:2)]
 
-iNat <- cbind(iNat[,1:50],iNatprey)
-
-
-iNat <- as.data.frame(iNat)
+iNat <- cbind(iNat,preydf)
 
 library(countrycode)
-iNat$place_country_name <- read.csv("observations-318441.csv")$place_country_name
 
 iNat$continent <- countrycode(sourcevar = iNat$place_country_name,
                               origin = "country.name",
@@ -183,16 +142,15 @@ iNat$continent[which(iNat$place_country_name %in%
 iNat$continent[which(iNat$continent == "Americas")] <- "Central America"
 iNat$continent[which(iNat$place_country_name == "Australia")] <- "Australia"
 
-iNat$continent[which(iNat$place_country_name %in% 
-                       c( "Argentina", "Bolivia", "Brazil", "Chile", "Colombia", 
-                          "Ecuador", "Guyana", "Paraguay", "Peru", "Suriname", 
-                          'Uruguay', "Venezuela","French Guiana", 
-                          "Falkland Islands","South Georgia", 
-                          "South Sandwich Islands"))] <- "South America"
-iNat$continent[which(iNat$continent == "Americas")] <- "North & Central America"
 saveRDS(iNat, file = "iNatDataset.RDS")
 
-write.csv(iNat, file = "iNatDataset.csv")
+write.csv(iNat[,-which(colnames(iNat)=="preyID")], file = "iNatDataset.csv")
+
+#PROBLEMS
+problemdf <- read.csv("observations-01-05-24.csv") 
+fixthese <- which(!(problemdf$id %in% iNat$id))
+
+write.csv(problemdf[fixthese,], file = "problems.csv")
 
 
 #### analysis ####
