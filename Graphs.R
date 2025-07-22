@@ -53,15 +53,16 @@ globalSpcurve <- rbind(newnames(filter(sn, continent == "Africa")),
                     )
 
 
-globalSpcurve$Continent <- c(rep("Africa", 149),
-                             rep("Asia", 149),
-                             rep("Australia", 149),
-                             rep("Central America", 149),
-                             rep("Europe", 149),
-                             rep("North America", 149),
-                             rep("Oceania", 149),
-                             rep("South America", 149),
-                             rep("Global", 149))
+len <- dim(globalSpcurve)[1]
+globalSpcurve$Continent <- c(rep("Africa", len/9),
+                             rep("Asia", len/9),
+                             rep("Australia", len/9),
+                             rep("Central America", len/9),
+                             rep("Europe", len/9),
+                             rep("North America", len/9),
+                             rep("Oceania", len/9),
+                             rep("South America", len/9),
+                             rep("Global", len/9))
 
 continentcolors <- list(Africa = "#dd4433",
                         Asia = "#dd9933",
