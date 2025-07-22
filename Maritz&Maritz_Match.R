@@ -31,7 +31,7 @@ sn.af <- sn.af[!(sn.af$id %in% mi$id),]
 #but do any match observations from their facebook dataset?
 mf.dated <- filter(mf, Obs.Date!="")
 mf.dated$Obs.Date <- as.POSIXct(mf.dated$Obs.Date, tz = "UTC", format ="%d/%m/%Y")
-max(mf.dated$Obs.Date)
+max(mf.dated$Obs.Date, na.rm = T)
 
 mf.datematch <- mf.dated[sapply(mf.dated$Obs.Date, 
                                 function(x){x%in%sn.af$observed_on}),]
@@ -55,5 +55,9 @@ mf.datematch$matches <- lapply(1:dim(mf.datematch)[1],
 #118828515 - geography, predator & prey match
 #146429588 - geography, predator & prey
 #187877883 - is not a match
+#19707063 - comments indicate that it is in the Maritz & Maritz group
 #19707089 - geography, predator & prey
 #116586231 - geography, predator & prey
+
+Maritzobs <- c(mi$id, 118828515, 146429588, 187877883, 19707063,116586231)
+saveRDS(Maritzobs, file = "Maritz_obs_ids.RDS")
